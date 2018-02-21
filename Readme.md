@@ -10,7 +10,7 @@ Takes PORT and ROOT_DIR params
 
 ./a.out 10001 ~/user
 
-#How to run netcat client?
+# How to run netcat client?
 
 ex nc 127.0.0.1 10001
 
