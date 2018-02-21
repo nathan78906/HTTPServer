@@ -17,6 +17,7 @@ ex nc 127.0.0.1 10001
 Enter get requests in client after.
 
 GET /hello.txt HTTP/1.0
+
 if-modified-since: Sunday, 18-Feb-18 21:49:37 GMT
 
 Be careful when entering multiline get requests, pressing enter only sends the first line. Copy paste it instead.
