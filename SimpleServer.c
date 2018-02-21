@@ -14,15 +14,6 @@
 #include<sys/stat.h>
 #define MESSAGE_LENGTH 1024
 
-//TODO check if / not at beginning of path
-//TODO check if we need to consider other optional headers besides if modified since
-//TODO send proper responses
-//TODO clean up
-//TODO ask if last modified time will be in asctime standard
-//TODO what if incorrect key value pairs or incorrect date? ignores right
-//TODO handle other cases for requests
-//TODO make sure responses are in the correct format
-
 typedef struct {
  char *ext;
  char *mediatype;
@@ -45,14 +36,41 @@ const extn extensions[] ={
  {"gz",  "image/gz"  },
  {"tar", "image/tar" },
  {"pdf","application/pdf"},
- {"zip","application/octet-stream"},
- {"rar","application/octet-stream"},
  {0,0} };
 
 const char *get_filename_ext(const char *filename) {
     const char *dot = strrchr(filename, '.');
     if(!dot || dot == filename) return "";
     return dot + 1;
+}
+
+const char *get_mime_type(const char *full_path){
+  const char *file_ext = get_filename_ext(full_path);
+  printf("extension %s\n", file_ext);
+  int i;
+  for (i = 0; extensions[i].ext != NULL; i++) {
+    if (strcasecmp(file_ext, extensions[i].ext) == 0){
+      return extensions[i].mediatype;
+    }
+  }
+  return NULL;
+}
+
+int check_last_modified_parameter(const char *modified_date, time_t mtime, int client_fd, const char *rfc_format, const char *not_modified){
+  if (modified_date != NULL){
+    struct tm tm;
+    if (strptime(modified_date, "%c", &tm) != NULL
+    || strptime(modified_date, rfc_format, &tm) != NULL
+    || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
+      time_t req_time = mktime(&tm);
+      if (difftime(mktime(&tm), mtime) >= 0){
+        printf("Not modified!!\n");
+        write(client_fd, not_modified, strlen(not_modified));
+        return -1;
+      }
+    }
+  }
+  return 0;
 }
 
 void clean_exit(int rc, int fd, char *message){
@@ -65,7 +83,18 @@ void clean_exit(int rc, int fd, char *message){
   }
 }
 
+void handle_error(int status, char *message){
+  if (status < 0){
+    perror(message);
+    exit(EXIT_FAILURE);
+  }
+}
+
+//TODO clean up code, refactor it. Also remove printf and fprintf debugging statements when everything works correctly
+//TODO better documentation, format the code to a particular style
+//TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
 void process_request(int client_fd, char *client_msg, char *root_path){
+  //declare response messages
   char *not_implemented = "HTTP/1.0 501 Not Implemented\r\n";
   char *bad_request = "HTTP/1.0 400 Bad Request\r\n";
   char *file_not_found = "HTTP/1.0 404 File Not Found\r\n";
@@ -73,20 +102,27 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
   char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
   int failure_len = strlen(bad_request);
+  int server_err_len = strlen(server_error);
   char *path, *http_type;
 
+  //parse the http request
+  //check for get request
+  //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     fprintf(stdout, "Missing GET\n");
     write(client_fd, bad_request, failure_len);
     return;
   }
 
+  //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
     fprintf(stdout, "Missing path\n");
     write(client_fd, bad_request, failure_len);
     return;
   }
 
+  //determine if HTTP type is provided
+  //TODO, check if http type is required or is optional
   if ((http_type = strtok(NULL, "\r\n")) == NULL || strcasecmp(http_type, "HTTP/1.0") != 0){
     fprintf(stdout, "Missing http type\n");
     write(client_fd, bad_request, failure_len);
@@ -97,6 +133,8 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *modified_date = NULL;
 
   //look for the last modified date;
+  //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
+  //the parsing will fail
   while(1){
     if ((key = strtok(NULL, " \t")) == NULL || (value = strtok(NULL, "\r\n")) == NULL){
       break;
@@ -112,19 +150,22 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     }
   }
 
+  //allocate memory for full path
   int path_size = strlen(root_path) + strlen(path) + 1;
-
   char *full_path = (char *)malloc(path_size * sizeof(char));
   memset(full_path, '\0', path_size);
 
 
   if (full_path == NULL){
     printf("Error allocating memory!!\n");
-    write(client_fd, server_error, strlen(server_error));
+    write(client_fd, server_error, server_err_len);
     return;
   }
 
+  //TODO consider the case where the path does not start with /, this won't work
   strcat(full_path, root_path);
+
+  //look at index.html if only root is asked
   if (strcmp(path, "/") == 0){
     strcat(full_path, "/index.html");
   }else{
@@ -137,44 +178,27 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *file_buffer;
   struct stat stat_struct;
 
-
+  //open the file if it exists
   if ( (file_fd=open(full_path, O_RDONLY))!=-1 )
   {
+    //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
       printf("Error retrieving file metadata \n");
-      write(client_fd, server_error, strlen(server_error));
+      write(client_fd, server_error, server_err_len);
       return;
     }
 
     length = stat_struct.st_size;
     fprintf(stdout, "length %d\n", length);
     char *rfc_format =  "%a, %d %b %Y %T GMT";
+
     //handle if-modified-since parameter, check if time is in a correct format
-    if (modified_date != NULL){
-      struct tm tm;
-      if (strptime(modified_date, "%c", &tm) != NULL
-      || strptime(modified_date, rfc_format, &tm) != NULL
-      || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
-        time_t req_time = mktime(&tm);
-        if (difftime(mktime(&tm), stat_struct.st_mtime) >= 0){
-          printf("Not modified!!\n");
-          write(client_fd, not_modified, strlen(not_modified));
-          return;
-        }
-      }
+    if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
+      return;
     }
 
     //figure out mime type from extension
-    const char *file_ext = get_filename_ext(full_path);
-    printf("extension %s\n", file_ext);
-    char *mime_type = NULL;
-    int i;
-    for (i = 0; extensions[i].ext != NULL; i++) {
-      if (strcasecmp(file_ext, extensions[i].ext) == 0){
-        mime_type = extensions[i].mediatype;
-        break;
-      }
-    }
+    const char *mime_type = get_mime_type(full_path);
 
     if (mime_type == NULL){
       printf("file not supported");
@@ -182,8 +206,10 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       return;
     }
 
+    //no errors, send success response
     write(client_fd, success_response, strlen(success_response));
 
+    //determine current date and last modified date to place in response header
     char rfc_time[80];
     char current_time[80];
     time_t time_sec = time(NULL);
@@ -191,22 +217,22 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     strftime(current_time, 80, rfc_format, localtime(&(time_sec)));
 
     char *header;
+    //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\n\r\n",
      current_time, (int)length, mime_type, rfc_time);
     write(client_fd, header, strlen(header));
     free(header);
 
+    //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
         printf("Send err!!\n");
-        write(client_fd, server_error, strlen(server_error));
+        write(client_fd, server_error, server_err_len);
         return;
     }
 	}else{
     //File not found
      write(client_fd, file_not_found, strlen(file_not_found));
   }
-
-
 }
 
 int main(int argc, char * argv[]){
@@ -241,54 +267,35 @@ int main(int argc, char * argv[]){
   clean_exit(rc, server_fd, "[Server bind error]");
 
   //listen on the socket for up to 5 connections and check perror
-  rc = listen(server_fd, 5);
+  rc = listen(server_fd, 100);
   clean_exit(rc, server_fd, "[Server listen error]: ");
 
-  //Accept connections forever
   fprintf(stdout, "Server at %s:%d Listening for connections\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
 
- //  while(1){
- //   client_fd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
- //   clean_exit(client_fd, server_fd, "[Server accept error]: ");
- //
- //   //process requests
- //   fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
- //   read(client_fd, client_msg, 1024);
- //   fprintf(stdout, "%s said: %s", inet_ntoa(client_addr.sin_addr), client_msg);
- //   write(client_fd, server_msg, strlen(server_msg));
- //   //close client
- //   close(client_fd);
- // }
-
-
+  //Accept connections forever
   while(1){
     client_fd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
-    printf("client fd %d\n", client_fd);
     clean_exit(client_fd, server_fd, "[Server accept error]: ");
 
+    //fork and let child handle processing request for the accepted client
     int pid = fork();
-    if (fork < 0){
-      perror("Error on fork");
-      exit(EXIT_FAILURE);
-    }
 
     if (pid == 0){
-      //close server_fd in child process
+      //close server_fd in child process, it isn't required
       rc = close(server_fd);
       //process requests
       fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
       read(client_fd, client_msg, MESSAGE_LENGTH);
       fprintf(stdout, "Recieved Client Message %s\n", client_msg);
       process_request(client_fd, client_msg, argv[2]);
-      close(client_fd);
+      handle_error(close(client_fd), "close error");
       //exit from child process
       exit(EXIT_SUCCESS);
     }else{
       //close client fd in parent process and loop again
-      close(client_fd);
+      handle_error(close(client_fd), "close error");
     }
   }
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
-
 }
