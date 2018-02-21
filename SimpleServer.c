@@ -93,6 +93,7 @@ void handle_error(int status, char *message){
 //TODO clean up code, refactor it. Also remove printf and fprintf debugging statements when everything works correctly
 //TODO better documentation, format the code to a particular style
 //TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
+//TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 void process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
   char *not_implemented = "HTTP/1.0 501 Not Implemented\r\n";
