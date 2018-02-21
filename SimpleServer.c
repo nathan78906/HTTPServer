@@ -236,6 +236,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   }
 }
 
+//argv will contain 2 params : PORT #, http_root_path
 int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
@@ -250,6 +251,7 @@ int main(int argc, char * argv[]){
   //create server address struct
   memset(&server_addr, 0, sizeof(struct sockaddr_in));
   server_addr.sin_family = AF_INET;
+  //convert port number(string) to integer
   server_addr.sin_port = htons(atoi(argv[1]));
 
   //bind to available ip on machine
