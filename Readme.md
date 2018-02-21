@@ -22,3 +22,16 @@ if-modified-since: Sunday, 18-Feb-18 21:49:37 GMT
 
 Be careful when entering multiline get requests, pressing enter only sends the first line. Copy paste it instead.
 This is a possible bug in the code that needs to be investigated.
+
+# Linux instructions
+## To compile
+
+`gcc -Wall SimpleServer.c -o sim` 
+
+## Execute 
+
+`./sim 10001 ~/Documents/server/`
+
+## Testing
+
+`curl --http1.0 --header 'If-Modified-Since: Sunday, 18-Feb-18 21:49:37 GMT' 0.0.0.0:10001/hello.txt`
