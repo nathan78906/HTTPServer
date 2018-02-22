@@ -270,7 +270,7 @@ int main(int argc, char * argv[]){
   clean_exit(rc, server_fd, "[Server bind error]");
 
   //listen on the socket for up to 5 connections and check perror
-  rc = listen(server_fd, 100);
+  rc = listen(server_fd, 5);
   clean_exit(rc, server_fd, "[Server listen error]: ");
 
   fprintf(stdout, "Server at %s:%d Listening for connections\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
@@ -279,25 +279,12 @@ int main(int argc, char * argv[]){
   while(1){
     client_fd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
     clean_exit(client_fd, server_fd, "[Server accept error]: ");
-
-    //fork and let child handle processing request for the accepted client
-    int pid = fork();
-
-    if (pid == 0){
-      //close server_fd in child process, it isn't required
-      rc = close(server_fd);
-      //process requests
-      fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-      read(client_fd, client_msg, MESSAGE_LENGTH);
-      fprintf(stdout, "Recieved Client Message %s\n", client_msg);
-      process_request(client_fd, client_msg, argv[2]);
-      handle_error(close(client_fd), "close error");
-      //exit from child process
-      exit(EXIT_SUCCESS);
-    }else{
-      //close client fd in parent process and loop again
-      handle_error(close(client_fd), "close error");
-    }
+    //process requests
+    fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    read(client_fd, client_msg, MESSAGE_LENGTH);
+    fprintf(stdout, "Recieved Client Message %s\n", client_msg);
+    process_request(client_fd, client_msg, argv[2]);
+    handle_error(close(client_fd), "close error");
   }
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
