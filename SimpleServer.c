@@ -144,7 +144,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     fprintf(stdout, "key %s\n", key);
     fprintf(stdout, "value %s\n",value);
 
-    if (strcasecmp(key, "If-Modified-Since:") == 0){
+    if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
       break;
