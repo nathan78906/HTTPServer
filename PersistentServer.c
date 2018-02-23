@@ -92,13 +92,23 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
   return 0;
 }
 
-int check_if_match(const char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed) {
+int check_if_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed) {
   if (etag_given != NULL) {
-    if (strcmp(etag_given, etag_computed) != 0) {
-      printf("Etags dont match!\n");
-      write(client_fd, precondition_failed, strlen(precondition_failed));
-      return -1;
+    if (strcmp(etag_given, "*") == 0) {
+      return 0;
     }
+    char *token;
+
+    token = strtok(etag_given, ", ");
+    while(token != NULL) {
+      if (strcmp(token, etag_computed) == 0) {
+        return 0;
+      }
+      token = strtok(NULL, ", ");
+    }
+    printf("Etags dont match!\n");
+    write(client_fd, precondition_failed, strlen(precondition_failed));
+    return -1;
   }
   return 0;
 } 
