@@ -92,6 +92,17 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
   return 0;
 }
 
+int check_if_match(const char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed) {
+  if (etag_given != NULL) {
+    if (strcmp(etag_given, etag_computed) != 0) {
+      printf("Etags dont match!\n");
+      write(client_fd, precondition_failed, strlen(precondition_failed));
+      return -1;
+    }
+  }
+  return 0;
+} 
+
 void clean_exit(int rc, int fd, char *message){
   if (rc == -1 || fd == -1){
     if (fd != -1){
@@ -121,6 +132,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *success_response = "HTTP/1.0 200 OK\r\n";
   char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
   char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
+  char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n";
   int failure_len = strlen(bad_request);
   int server_err_len = strlen(server_error);
   char *path, *http_type;
@@ -151,6 +163,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   char *key, *value;
   char *modified_date = NULL;
+  char *etag_given = NULL;
 
   //look for the last modified date;
   //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
@@ -166,6 +179,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
+      break;
+    }
+
+    if (strcasecmp(key, "\nIf-Match:") == 0 || strcasecmp(key, "If-Match:") == 0){
+      etag_given = value;
+      fprintf(stdout, "etag %s\n", etag_given);
       break;
     }
   }
@@ -220,6 +239,11 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       return;
     }
 
+    //handle if-match header
+    if (check_if_match(etag_given, etag, client_fd, precondition_failed) == -1) {
+      return;
+    }
+
     //figure out mime type from extension
     const char *mime_type = get_mime_type(full_path);
 
@@ -245,6 +269,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
      current_time, (int)length, mime_type, rfc_time, etag);
     write(client_fd, header, strlen(header));
     free(header);
+    free(etag);
 
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
