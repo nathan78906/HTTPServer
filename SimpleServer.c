@@ -130,7 +130,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     return;
   }
 
-  char *key, *value;
+  char *key, *value; 
   char *modified_date = NULL;
 
   //look for the last modified date;
@@ -141,7 +141,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       break;
     }
 
-    fprintf(stdout, "key %s\n", key);
+    fprintf(stdout, "key: %s\n", key);
     fprintf(stdout, "value %s\n",value);
 
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){

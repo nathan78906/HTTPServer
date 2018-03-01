@@ -81,7 +81,9 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
     if (strptime(modified_date, "%c", &tm) != NULL
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
+      //converts broken-down time into time since the Epoch
       time_t req_time = mktime(&tm);
+      //returns difference of seconds btw time1, time2
       if (difftime(mktime(&tm), mtime) >= 0){
         printf("Not modified!!\n");
         write(client_fd, not_modified, strlen(not_modified));
@@ -92,6 +94,7 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
   return 0;
 }
 
+//Succeeds if the ETag of the distant resource is equal to one listed in this header
 int check_if_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed) {
   if (etag_given != NULL) {
     if (strcmp(etag_given, "*") == 0) {
@@ -104,7 +107,7 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
       if (strcmp(token, etag_computed) == 0) {
         return 0;
       }
-      token = strtok(NULL, ", ");
+      token = strtok(NULL, ", "); 
     }
     printf("Etags dont match!\n");
     write(client_fd, precondition_failed, strlen(precondition_failed));
@@ -112,6 +115,31 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
   }
   return 0;
 } 
+
+//Succeeds if the ETag of the distant resource is different to each listed in this header
+//if tag is null return 0, if theres a match return -1, if no matches return 1
+int check_if_none_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed){
+  if(etag_given != NULL){
+    char *token;
+
+    //parse etag with commas
+    token = strtok(etag_given, ", ");
+    while(token != NULL){
+      if(strcmp(token, etag_computed) == 0){
+        printf("An etag matched!\n");
+        write(client_fd, precondition_failed, strlen(precondition_failed));
+        return -1;
+      }
+      //if its not matched, go to the next etag
+      token = strtok(NULL, ", ");
+    }
+    //no etags were found, successful 
+    printf("No etags were matched!\n");
+    return 1;
+  }
+  return 0;
+
+}
 
 void clean_exit(int rc, int fd, char *message){
   if (rc == -1 || fd == -1){
