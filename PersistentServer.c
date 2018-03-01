@@ -39,24 +39,6 @@ const extn extensions[] ={
  {0,0} };
 
 
-char *hash(FILE *f) {
-    
-    char *hash_val = malloc(8);
-    char ch;
-    int hash_index = 0;
-
-    for (int index = 0; index < 8; index++) {
-        hash_val[index] = '\0';
-    }
-
-    while(fread(&ch, 1, 1, f) != 0) {
-        hash_val[hash_index] ^= ch;
-        hash_index = (hash_index + 1) % 8;
-    }
-
-    return hash_val;
-}
-
 const char *get_filename_ext(const char *filename) {
     const char *dot = strrchr(filename, '.');
     if(!dot || dot == filename) return "";
@@ -87,6 +69,25 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
       if (difftime(mktime(&tm), mtime) >= 0){
         printf("Not modified!!\n");
         write(client_fd, not_modified, strlen(not_modified));
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int client_fd, const char *rfc_format, const char *precondition_failed){
+  if (modified_date != NULL){
+    struct tm tm;
+    if (strptime(modified_date, "%c", &tm) != NULL
+    || strptime(modified_date, rfc_format, &tm) != NULL
+    || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
+      //converts broken-down time into time since the Epoch
+      time_t req_time = mktime(&tm);
+      //returns difference of seconds btw time1, time2
+      if (!(difftime(mktime(&tm), mtime) >= 0)){
+        printf("wasn't modified since!!\n");
+        write(client_fd, precondition_failed, strlen(precondition_failed));
         return -1;
       }
     }
@@ -193,7 +194,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   //determine if HTTP type is provided
   //TODO, check if http type is required or is optional
-  if ((http_type = strtok(NULL, "\r\n")) == NULL || strcasecmp(http_type, "HTTP/1.0") != 0){
+  if ((http_type = strtok(NULL, "\r\n")) == NULL || (strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0)){
     fprintf(stdout, "Missing http type\n");
     write(client_fd, bad_request, failure_len);
     return;
@@ -201,6 +202,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   char *key, *value;
   char *modified_date = NULL;
+  char *unmodified_date = NULL;
   char *etag_given = NULL;
 
   //look for the last modified date;
@@ -217,6 +219,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
+      break;
+    }
+
+    if (strcasecmp(key, "\nIf-Unmodified-Since:") == 0 || strcasecmp(key, "If-Unmodified-Since:") == 0){
+      unmodified_date = value;
+      fprintf(stdout, "date %s\n", unmodified_date);
       break;
     }
 
@@ -274,6 +282,11 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     //handle if-modified-since parameter, check if time is in a correct format
     if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
+      return;
+    }
+
+    //handle if-unmodified-since parameter, check if time is in a correct format
+    if (check_last_unmodified_parameter(unmodified_date, stat_struct.st_mtime, client_fd, rfc_format, precondition_failed) == -1){
       return;
     }
 
