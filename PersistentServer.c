@@ -179,9 +179,17 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *success_response = "HTTP/1.0 200 OK\r\n";
   char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
   char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
+  char *not_implemented_one = "HTTP/1.1 501 Not Implemented\r\n";
+  char *bad_request_one = "HTTP/1.1 400 Bad Request\r\n";
+  char *file_not_found_one = "HTTP/1.1 404 File Not Found\r\n";
+  char *success_response_one = "HTTP/1.1 200 OK\r\n";
+  char *server_error_one = "HTTP/1.1 500 Internal Server Error\r\n";
+  char *not_modified_one = "HTTP/1.1 304 Not Modified\r\n";
   char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n";
   int failure_len = strlen(bad_request);
   int server_err_len = strlen(server_error);
+  int failure_len_one = strlen(bad_request_one);
+  int server_err_len_one = strlen(server_error_one);
   char *path, *http_type;
 
   //parse the http request
@@ -189,31 +197,31 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     fprintf(stdout, "Missing GET\n");
-    write(client_fd, bad_request, failure_len);
+    write(client_fd, bad_request_one, failure_len_one);
     return;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
     fprintf(stdout, "Missing path\n");
-    write(client_fd, bad_request, failure_len);
+    write(client_fd, bad_request_one, failure_len_one);
     return;
   }
 
   //determine if HTTP type is provided
   //TODO, check if http type is required or is optional
-  if ((http_type = strtok(NULL, "\r\n")) == NULL || (strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0)){
-    fprintf(stdout, "Missing http type\n");
-    write(client_fd, bad_request, failure_len);
-    return;
+  http_type = strtok(NULL, "\r\n");
+  if ((strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0)){
+    http_type = "HTTP/1.1";
   }
 
   char *key, *value;
   char *modified_date = NULL;
   char *unmodified_date = NULL;
   char *etag_given = NULL;
+  char *etag_given_none = NULL;
 
-  //look for the last modified date;
+  //look for the headers
   //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
   //the parsing will fail
   while(1){
@@ -223,7 +231,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     fprintf(stdout, "key %s\n", key);
     fprintf(stdout, "value %s\n",value);
-
+    
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
@@ -241,6 +249,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       fprintf(stdout, "etag %s\n", etag_given);
       break;
     }
+
+    if (strcasecmp(key, "\nIf-None-Match:") == 0 || strcasecmp(key, "If-None-Match:") == 0){
+      etag_given_none = value;
+      fprintf(stdout, "etag %s\n", etag_given_none);
+      break;
+    }
   }
 
   //allocate memory for full path
@@ -251,7 +265,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   if (full_path == NULL){
     printf("Error allocating memory!!\n");
-    write(client_fd, server_error, server_err_len);
+    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+      write(client_fd, server_error_one, server_err_len_one);
+    }
+    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+      write(client_fd, server_error, server_err_len);
+    }
     return;
   }
 
@@ -277,7 +296,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
       printf("Error retrieving file metadata \n");
-      write(client_fd, server_error, server_err_len);
+      if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+        write(client_fd, server_error_one, server_err_len_one);
+      }
+      else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+        write(client_fd, server_error, server_err_len);
+      }
       return;
     }
 
@@ -287,20 +311,32 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     char *etag;
     asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
+    
+    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+      //handle if-modified-since parameter, check if time is in a correct format
+      if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified_one) == -1){
+        return;
+      }
 
-    //handle if-modified-since parameter, check if time is in a correct format
-    if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
-      return;
-    }
+      //handle if-unmodified-since parameter, check if time is in a correct format
+      if (check_last_unmodified_parameter(unmodified_date, stat_struct.st_mtime, client_fd, rfc_format, precondition_failed) == -1){
+        return;
+      }
 
-    //handle if-unmodified-since parameter, check if time is in a correct format
-    if (check_last_unmodified_parameter(unmodified_date, stat_struct.st_mtime, client_fd, rfc_format, precondition_failed) == -1){
-      return;
-    }
+      //handle if-match header
+      if (check_if_match(etag_given, etag, client_fd, precondition_failed) == -1) {
+        return;
+      }
 
-    //handle if-match header
-    if (check_if_match(etag_given, etag, client_fd, precondition_failed) == -1) {
-      return;
+      //handle if-none-match header
+      if (check_if_none_match(etag_given_none, etag, client_fd, precondition_failed) == -1) {
+        return;
+      }
+    } else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+      //handle if-modified-since parameter, check if time is in a correct format
+      if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
+        return;
+      }
     }
 
     //figure out mime type from extension
@@ -308,12 +344,22 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     if (mime_type == NULL){
       printf("file not supported");
-      write(client_fd, not_implemented, strlen(not_implemented));
+      if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+        write(client_fd, not_implemented_one, strlen(not_implemented_one));
+      }
+      else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+        write(client_fd, not_implemented, strlen(not_implemented));
+      }
       return;
     }
 
     //no errors, send success response
-    write(client_fd, success_response, strlen(success_response));
+    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+      write(client_fd, success_response_one, strlen(success_response_one));
+    }
+    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+      write(client_fd, success_response, strlen(success_response));
+    }
 
     //determine current date and last modified date to place in response header
     char rfc_time[80];
@@ -324,21 +370,41 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
-    asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\nETag: %s\n\r\n",
-     current_time, (int)length, mime_type, rfc_time, etag);
-    write(client_fd, header, strlen(header));
-    free(header);
-    free(etag);
+    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\nETag: %s\n\r\n",
+        current_time, (int)length, mime_type, rfc_time, etag);
+      write(client_fd, header, strlen(header));
+      free(header);
+      free(etag);
+    }
+    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\n\r\n",
+        current_time, (int)length, mime_type, rfc_time);
+      write(client_fd, header, strlen(header));
+      free(header);
+      free(etag);
+    }
+
 
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
         printf("Send err!!\n");
-        write(client_fd, server_error, server_err_len);
+        if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+          write(client_fd, server_error_one, server_err_len_one);
+        }
+        else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+          write(client_fd, server_error, server_err_len);
+        }
         return;
     }
 	}else{
     //File not found
-     write(client_fd, file_not_found, strlen(file_not_found));
+    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+      write(client_fd, file_not_found_one, strlen(file_not_found_one));
+    }
+    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
+      write(client_fd, file_not_found, strlen(file_not_found));
+    }
   }
 }
 
@@ -381,7 +447,7 @@ int main(int argc, char * argv[]){
 
   fprintf(stdout, "Server at %s:%d Listening for connections\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
 
-  //Accept connections forever
+  //Accept connections foralso when ever
   while(1){
     client_fd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
     clean_exit(client_fd, server_fd, "[Server accept error]: ");
