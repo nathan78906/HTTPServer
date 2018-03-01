@@ -105,6 +105,10 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
 
     token = strtok(etag_given, ", ");
     while(token != NULL) {
+      // check for W/ for each ETag
+      if(strncmp(token, "W/", 2) == 0) {
+        token = token + 2;
+      }
       if (strcmp(token, etag_computed) == 0) {
         return 0;
       }
@@ -126,6 +130,10 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
     //parse etag with commas
     token = strtok(etag_given, ", ");
     while(token != NULL){
+      // check for W/ for each ETag
+      if(strncmp(token, "W/", 2) == 0) {
+        token = token + 2;
+      }
       if(strcmp(token, etag_computed) == 0){
         printf("An etag matched!\n");
         write(client_fd, precondition_failed, strlen(precondition_failed));
@@ -278,7 +286,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
     char *etag;
-    asprintf(&etag, "%ld-%ld-%lld", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
+    asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
 
     //handle if-modified-since parameter, check if time is in a correct format
     if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
