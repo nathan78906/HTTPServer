@@ -55,7 +55,7 @@ Then
 `curl -v --http1.1 --header 'If-Match: "ayy", "46288911-1519927953-10"' 0.0.0.0:10001/hello.txt`
 
 
-### If-Match Testing
+### If-None-Match Testing
 
 First use 
 
