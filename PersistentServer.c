@@ -112,14 +112,14 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
       if (strcmp(token, etag_computed) == 0) {
         return 0;
       }
-      token = strtok(NULL, ", "); 
+      token = strtok(NULL, ", ");
     }
     printf("Etags dont match!\n");
     write(client_fd, precondition_failed, strlen(precondition_failed));
     return -1;
   }
   return 0;
-} 
+}
 
 //Succeeds if the ETag of the distant resource is different to each listed in this header
 //if tag is null return 0, if theres a match return -1, if no matches return 1
@@ -145,7 +145,7 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
       //if its not matched, go to the next etag
       token = strtok(NULL, ", ");
     }
-    //no etags were found, successful 
+    //no etags were found, successful
     printf("No etags were matched!\n");
     return 0;
   }
@@ -234,7 +234,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     fprintf(stdout, "key %s\n", key);
     fprintf(stdout, "value %s\n",value);
-    
+
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
@@ -314,7 +314,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     char *etag;
     asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
-    
+
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
       if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified_one) == -1){
@@ -448,18 +448,42 @@ int main(int argc, char * argv[]){
   rc = listen(server_fd, 5);
   clean_exit(rc, server_fd, "[Server listen error]: ");
 
-  fprintf(stdout, "Server at %s:%d Listening for connections\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+  //struct for setting read timeout
+  struct timeval tv;
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
 
-  //Accept connections foralso when ever
+  fprintf(stdout, "Server at %s:%d Listening for connections\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+  client_addr_len = sizeof(client_addr);
+  //Accept connections
   while(1){
     client_fd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
     clean_exit(client_fd, server_fd, "[Server accept error]: ");
-    //process requests
-    fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-    read(client_fd, client_msg, MESSAGE_LENGTH);
-    fprintf(stdout, "Recieved Client Message %s\n", client_msg);
-    process_request(client_fd, client_msg, argv[2]);
-    handle_error(close(client_fd), "close error");
+
+    //fork and let child handle processing request for the accepted client
+    int pid = fork();
+    handle_error(pid, "Fork error");
+
+    if (pid == 0){
+      //close server_fd in child process, it isn't required
+      rc = close(server_fd);
+      //process requests
+      fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+      //set timeout on client_fd read
+      setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+      while (read(client_fd, client_msg, MESSAGE_LENGTH) > 0){
+        fprintf(stdout, "Recieved Client Message %s\n", client_msg);
+        process_request(client_fd, client_msg, argv[2]);
+      }
+      handle_error(close(client_fd), "close error");
+      //exit from child process
+      exit(EXIT_SUCCESS);
+    }else{
+      //close client fd in parent process and loop again
+      handle_error(close(client_fd), "close error");
+    }
   }
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
