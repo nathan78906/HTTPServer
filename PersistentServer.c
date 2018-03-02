@@ -125,6 +125,9 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
 //if tag is null return 0, if theres a match return -1, if no matches return 1
 int check_if_none_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed){
   if(etag_given != NULL){
+    if (strcmp(etag_given, "*") == 0) {
+      return 0;
+    }
     char *token;
 
     //parse etag with commas
@@ -144,7 +147,7 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
     }
     //no etags were found, successful 
     printf("No etags were matched!\n");
-    return 1;
+    return 0;
   }
   return 0;
 
@@ -397,7 +400,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
         }
         return;
     }
-	}else{
+  }else{
     //File not found
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       write(client_fd, file_not_found_one, strlen(file_not_found_one));
