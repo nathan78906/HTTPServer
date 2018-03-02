@@ -36,7 +36,7 @@ This is a possible bug in the code that needs to be investigated.
 
 `curl --http1.0 --header 'If-Modified-Since: Sunday, 18-Feb-18 21:49:37 GMT' 0.0.0.0:10001/hello.txt`
 
-### ETag Testing
+### If-Match Testing
 
 First use 
 
@@ -53,4 +53,39 @@ Then
 `curl -v --http1.1 --header 'If-Match: W/"46288911-1519927953-10", W/"afas"' 0.0.0.0:10001/hello.txt`
 
 `curl -v --http1.1 --header 'If-Match: "ayy", "46288911-1519927953-10"' 0.0.0.0:10001/hello.txt`
+
+
+### If-Match Testing
+
+First use 
+
+`curl --http1.1 0.0.0.0:10001/hello.txt`
+
+to get ETag for `hello.txt` assume ETag is `46783227-1519946231-21`
+
+Then 
+
+`curl -v --http1.1 --header 'If-None-Match: "46783227-1519946231-21"' 0.0.0.0:10001/hello.txt`
+=> Should return preconditional error 
+
+`curl -v --http1.1 --header 'If-None-Match: W/"46783227-1519946231-21"' 0.0.0.0:10001/hello.txt`
+=> Should return preconditional error 
+
+`curl -v --http1.1 --header 'If-None-Match: "12345"' 0.0.0.0:10001/hello.txt`
+=> Should return a response
+
+`curl -v --http1.1 --header 'If-None-Match: W/"12345"' 0.0.0.0:10001/hello.txt`
+=> Should return a response
+
+`curl -v --http1.1 --header 'If-None-Match: "12345", "random"' 0.0.0.0:10001/hello.txt`
+=> Should return a response 
+
+`curl -v --http1.1 --header 'If-None-Match: "46783227-1519946231-21", "random"' 0.0.0.0:10001/hello.txt`
+=> Should return preconditional error 
+
+
+
+
+
+
 
