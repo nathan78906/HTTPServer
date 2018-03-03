@@ -223,6 +223,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *unmodified_date = NULL;
   char *etag_given = NULL;
   char *etag_given_none = NULL;
+  char *host = NULL;
 
   //look for the headers
   //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
@@ -234,6 +235,11 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     fprintf(stdout, "key %s\n", key);
     fprintf(stdout, "value %s\n",value);
+
+    if (strcasecmp(key, "\nHost:") == 0 || strcasecmp(key, "Host:") == 0){
+      host = value;
+      fprintf(stdout, "host %s\n", host);
+    }
 
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
@@ -257,6 +263,15 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       etag_given_none = value;
       fprintf(stdout, "etag %s\n", etag_given_none);
       break;
+    }
+  }
+
+  // check for HTTP1.1 and host header
+  if (strcasecmp(http_type, "HTTP/1.1") == 0) {
+    if (host == NULL) {
+      fprintf(stdout, "Missing Host Header\n");
+      write(client_fd, bad_request_one, strlen(bad_request_one));
+      return;
     }
   }
 
