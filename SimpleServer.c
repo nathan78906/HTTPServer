@@ -219,7 +219,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
-    asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\n\r\n",
+    asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
      current_time, (int)length, mime_type, rfc_time);
     write(client_fd, header, strlen(header));
     free(header);

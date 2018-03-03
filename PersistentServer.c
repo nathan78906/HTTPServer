@@ -374,14 +374,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\nETag: %s\n\r\n",
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time, etag);
       write(client_fd, header, strlen(header));
       free(header);
       free(etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\n\r\n",
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time);
       write(client_fd, header, strlen(header));
       free(header);

@@ -374,14 +374,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\nETag: %s\n\r\n",
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time, etag);
       write(client_fd, header, strlen(header));
       free(header);
       free(etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      asprintf(&header, "Date: %s\nContent-Length: %d\nContent-Type: %s\nLast-Modified: %s\n\r\n",
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time);
       write(client_fd, header, strlen(header));
       free(header);
@@ -408,6 +408,22 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
       write(client_fd, file_not_found, strlen(file_not_found));
     }
+  }
+}
+
+void process_pipelined_request(int client_fd, char *client_msg, char *root_path){
+  char *request_tail, *request_cpy, *request_head;
+  int request_size;
+  request_head = client_msg;
+  while((request_tail = strstr(request_head, "\r\n\r\n")) != NULL) {
+    request_size = request_tail - request_head + 1;
+    request_cpy = (char *)malloc(request_size * sizeof(char));
+    memset(request_cpy, '\0', request_size);
+    strncpy(request_cpy, request_head, request_size);
+    printf("REQUEST CPY: %s\n", request_cpy);
+    process_request(client_fd, request_cpy, root_path);
+    free(request_cpy);
+    request_head = request_tail + 4;
   }
 }
 
@@ -475,27 +491,7 @@ int main(int argc, char * argv[]){
 
       while (read(client_fd, client_msg, MESSAGE_LENGTH) > 0){
         fprintf(stdout, "Recieved Client Message %s\n", client_msg);
-        char *request, *request_cpy, *rest;
-        int request_size;
-        request = strstr(client_msg, "\r\n\r\n");
-        request_size = request - client_msg + 1;
-        request_cpy = (char *)malloc(request_size * sizeof(char));
-        memset(request_cpy, '\0', request_size);
-        strncpy(request_cpy, client_msg, request_size);
-        printf("REQUEST CPY: %s\n", request_cpy);
-        process_request(client_fd, request_cpy, argv[2]);
-        free(request_cpy);
-        rest = request + 4;
-        while((request = strstr(rest, "\r\n\r\n")) != NULL) {
-          request_size = request - rest + 1;
-          request_cpy = (char *)malloc(request_size * sizeof(char));
-          memset(request_cpy, '\0', request_size);
-          strncpy(request_cpy, rest, request_size);
-          printf("REQUEST CPY: %s\n", request_cpy);
-          process_request(client_fd, request_cpy, argv[2]);
-          free(request_cpy);
-          rest = request + 4;
-        }
+        process_pipelined_request(client_fd, client_msg, argv[2]);
       }
       handle_error(close(client_fd), "close error");
       //exit from child process
