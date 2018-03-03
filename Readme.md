@@ -83,9 +83,33 @@ Then
 `curl -v --http1.1 --header 'If-None-Match: "46783227-1519946231-21", "random"' 0.0.0.0:10001/hello.txt`
 => Should return preconditional error 
 
+## Resources
+All server implementations make use of the following information:
 
+http://www.rfc-editor.org/rfc/rfc1945.txt
 
+https://www.ietf.org/rfc/rfc2068.txt
 
+https://www.ietf.org/rfc/rfc2616.txt
 
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Conditional_requests
+
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers
+
+http://www.utsc.utoronto.ca/~bharrington/cscd58/slides/week3-slides.pdf
+
+http://www.utsc.utoronto.ca/~bharrington/cscd58/tutorials/week4_tutorial.pdf
+
+https://stackoverflow.com/questions/19619124/http-pipelining-request-text-example
+
+https://brianbondy.com/blog/119/what-you-should-know-about-http-pipelining
+
+https://en.wikipedia.org/wiki/HTTP_persistent_connection
+
+https://www.wikiwand.com/en/HTTP_pipelining
+
+https://httpd.apache.org/docs/2.4/mod/core.html#keepalivetimeout
+
+https://httpd.apache.org/docs/2.4/mod/core.html#fileetag
 
 
