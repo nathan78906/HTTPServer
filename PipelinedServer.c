@@ -183,7 +183,6 @@ char* concat(const char *s1, const char *s2){
 //TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 void process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
-  char *not_implemented = " 501 Not Implemented\r\n";
   char *file_not_found = " 404 File Not Found\r\n";
   char *success = " 200 OK\r\n";
   char *server_error = " 500 Internal Server Error\r\n";
@@ -339,10 +338,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     const char *mime_type = get_mime_type(full_path);
 
     if (mime_type == NULL){
-      printf("file not supported");
-      char *response = concat(http_type, not_implemented);
-      write(client_fd, response, strlen(response));
-      return;
+      mime_type = "application/octet-stream";
     }
 
     //no errors, send success response
