@@ -376,17 +376,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time, etag);
-      write(client_fd, header, strlen(header));
-      free(header);
-      free(etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
       asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time);
-      write(client_fd, header, strlen(header));
-      free(header);
-      free(etag);
     }
+    write(client_fd, header, strlen(header));
+    free(header);
+    free(etag);
 
 
     //sendfile to client

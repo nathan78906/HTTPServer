@@ -170,29 +170,28 @@ void handle_error(int status, char *message){
   }
 }
 
+char* concat(const char *s1, const char *s2){
+    char *result = malloc(strlen(s1)+strlen(s2)+1);
+    strcpy(result, s1);
+    strcat(result, s2);
+    return result;
+}
+
 //TODO clean up code, refactor it. Also remove printf and fprintf debugging statements when everything works correctly
 //TODO better documentation, format the code to a particular style
 //TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
 //TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 void process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
-  char *not_implemented = "HTTP/1.0 501 Not Implemented\r\n";
-  char *bad_request = "HTTP/1.0 400 Bad Request\r\n";
-  char *file_not_found = "HTTP/1.0 404 File Not Found\r\n";
-  char *success_response = "HTTP/1.0 200 OK\r\n";
-  char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
+  char *not_implemented = " 501 Not Implemented\r\n";
+  char *file_not_found = " 404 File Not Found\r\n";
+  char *success = " 200 OK\r\n";
+  char *server_error = " 500 Internal Server Error\r\n";
+
   char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
-  char *not_implemented_one = "HTTP/1.1 501 Not Implemented\r\n";
   char *bad_request_one = "HTTP/1.1 400 Bad Request\r\n";
-  char *file_not_found_one = "HTTP/1.1 404 File Not Found\r\n";
-  char *success_response_one = "HTTP/1.1 200 OK\r\n";
-  char *server_error_one = "HTTP/1.1 500 Internal Server Error\r\n";
   char *not_modified_one = "HTTP/1.1 304 Not Modified\r\n";
   char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n";
-  int failure_len = strlen(bad_request);
-  int server_err_len = strlen(server_error);
-  int failure_len_one = strlen(bad_request_one);
-  int server_err_len_one = strlen(server_error_one);
   char *path, *http_type;
 
   //parse the http request
@@ -200,14 +199,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     fprintf(stdout, "Missing GET\n");
-    write(client_fd, bad_request_one, failure_len_one);
+    write(client_fd, bad_request_one, strlen(bad_request_one));
     return;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
     fprintf(stdout, "Missing path\n");
-    write(client_fd, bad_request_one, failure_len_one);
+    write(client_fd, bad_request_one, strlen(bad_request_one));
     return;
   }
 
@@ -268,12 +267,8 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   if (full_path == NULL){
     printf("Error allocating memory!!\n");
-    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      write(client_fd, server_error_one, server_err_len_one);
-    }
-    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      write(client_fd, server_error, server_err_len);
-    }
+    char *response = concat(http_type, server_error);
+    write(client_fd, response, strlen(response));
     return;
   }
 
@@ -299,12 +294,8 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
       printf("Error retrieving file metadata \n");
-      if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-        write(client_fd, server_error_one, server_err_len_one);
-      }
-      else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-        write(client_fd, server_error, server_err_len);
-      }
+      char *response = concat(http_type, server_error);
+      write(client_fd, response, strlen(response));
       return;
     }
 
@@ -347,22 +338,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     if (mime_type == NULL){
       printf("file not supported");
-      if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-        write(client_fd, not_implemented_one, strlen(not_implemented_one));
-      }
-      else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-        write(client_fd, not_implemented, strlen(not_implemented));
-      }
+      char *response = concat(http_type, not_implemented);
+      write(client_fd, response, strlen(response));
       return;
     }
 
     //no errors, send success response
-    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      write(client_fd, success_response_one, strlen(success_response_one));
-    }
-    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      write(client_fd, success_response, strlen(success_response));
-    }
+    char *response = concat(http_type, success);
+    write(client_fd, response, strlen(response));
 
     //determine current date and last modified date to place in response header
     char rfc_time[80];
@@ -374,40 +357,29 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\nETag: %s\r\n\r\n",
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time, etag);
-      write(client_fd, header, strlen(header));
-      free(header);
-      free(etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
       asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, rfc_time);
-      write(client_fd, header, strlen(header));
-      free(header);
-      free(etag);
     }
+    write(client_fd, header, strlen(header));
+    free(header);
+    free(etag);
 
 
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
         printf("Send err!!\n");
-        if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-          write(client_fd, server_error_one, server_err_len_one);
-        }
-        else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-          write(client_fd, server_error, server_err_len);
-        }
+        char *response = concat(http_type, server_error);
+        write(client_fd, response, strlen(response));
         return;
     }
   }else{
     //File not found
-    if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      write(client_fd, file_not_found_one, strlen(file_not_found_one));
-    }
-    else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      write(client_fd, file_not_found, strlen(file_not_found));
-    }
+    char *response = concat(http_type, file_not_found);
+    write(client_fd, response, strlen(response));
   }
 }
 
