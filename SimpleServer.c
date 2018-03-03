@@ -102,8 +102,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *success_response = "HTTP/1.0 200 OK\r\n";
   char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
   char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
-  int failure_len = strlen(bad_request);
-  int server_err_len = strlen(server_error);
+  char *not_supported = "HTTP/1.0 505 HTTP Version Not Supported\r\n";
   char *path, *http_type;
 
   //parse the http request
@@ -111,22 +110,22 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     fprintf(stdout, "Missing GET\n");
-    write(client_fd, bad_request, failure_len);
+    write(client_fd, bad_request, strlen(bad_request));
     return;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
     fprintf(stdout, "Missing path\n");
-    write(client_fd, bad_request, failure_len);
+    write(client_fd, bad_request, strlen(bad_request));
     return;
   }
 
   //determine if HTTP type is provided
   //TODO, check if http type is required or is optional
-  if ((http_type = strtok(NULL, "\r\n")) == NULL || strcasecmp(http_type, "HTTP/1.0") != 0){
-    fprintf(stdout, "Missing http type\n");
-    write(client_fd, bad_request, failure_len);
+  http_type = strtok(NULL, "\r\n");
+  if ((strcasecmp(http_type, "HTTP/1.0")) != 0){
+    write(client_fd, not_supported, strlen(not_supported));
     return;
   }
 
@@ -159,7 +158,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   if (full_path == NULL){
     printf("Error allocating memory!!\n");
-    write(client_fd, server_error, server_err_len);
+    write(client_fd, server_error, strlen(server_error));
     return;
   }
 
@@ -185,7 +184,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
       printf("Error retrieving file metadata \n");
-      write(client_fd, server_error, server_err_len);
+      write(client_fd, server_error, strlen(server_error));
       return;
     }
 
@@ -227,7 +226,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
         printf("Send err!!\n");
-        write(client_fd, server_error, server_err_len);
+        write(client_fd, server_error, strlen(server_error));
         return;
     }
 	}else{
@@ -304,3 +303,4 @@ int main(int argc, char * argv[]){
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
 }
+

@@ -192,6 +192,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *bad_request_one = "HTTP/1.1 400 Bad Request\r\n";
   char *not_modified_one = "HTTP/1.1 304 Not Modified\r\n";
   char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n";
+  char *not_supported = "HTTP/1.1 505 HTTP Version Not Supported\r\n";
   char *path, *http_type;
 
   //parse the http request
@@ -213,8 +214,9 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   //determine if HTTP type is provided
   //TODO, check if http type is required or is optional
   http_type = strtok(NULL, "\r\n");
-  if ((strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0)){
-    http_type = "HTTP/1.1";
+  if (strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0){
+    write(client_fd, not_supported, strlen(not_supported));
+    return;
   }
 
   char *key, *value;
