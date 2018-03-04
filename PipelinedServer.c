@@ -63,7 +63,6 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
       //converts broken-down time into time since the Epoch
-      time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (difftime(mktime(&tm), mtime) >= 0){
         write(client_fd, not_modified, strlen(not_modified));
@@ -81,7 +80,6 @@ int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
       //converts broken-down time into time since the Epoch
-      time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (!(difftime(mktime(&tm), mtime) >= 0)){
         write(client_fd, precondition_failed, strlen(precondition_failed));
@@ -276,7 +274,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   }
 
   int file_fd, length;
-  char *file_buffer;
   struct stat stat_struct;
 
   //open the file if it exists
@@ -293,7 +290,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
     char *etag;
-    //asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
+    asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
 
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
@@ -349,11 +346,11 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
     char *header;
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
+        asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time, etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
+        asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time);
     }
     write(client_fd, header, strlen(header));
@@ -397,7 +394,6 @@ int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
   char client_msg[MESSAGE_LENGTH];
-  char *server_msg = "Message";
   memset(client_msg, '\0', MESSAGE_LENGTH);
 
   //determine port number to listen on

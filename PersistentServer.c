@@ -63,7 +63,6 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
       //converts broken-down time into time since the Epoch
-      time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (difftime(mktime(&tm), mtime) >= 0){
         //not modified
@@ -82,7 +81,6 @@ int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
       //converts broken-down time into time since the Epoch
-      time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (!(difftime(mktime(&tm), mtime) >= 0)){
         write(client_fd, precondition_failed, strlen(precondition_failed));
@@ -189,7 +187,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
   //parse the http request
   //check for get request
-  //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     write(client_fd, bad_request_one, strlen(bad_request_one));
     return 0;
@@ -202,7 +199,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   }
 
   //determine if HTTP type is provided
-  //TODO, check if http type is required or is optional
   http_type = strtok(NULL, "\r\n");
   if (strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0){
     write(client_fd, not_supported, strlen(not_supported));
@@ -224,7 +220,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   }
 
   //look for the headers
-  //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
   //the parsing will fail
   while(1){
     if ((key = strtok(NULL, " \t")) == NULL || (value = strtok(NULL, "\r\n")) == NULL){
@@ -281,7 +276,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
 
   int file_fd, length;
-  char *file_buffer;
   struct stat stat_struct;
 
   //open the file if it exists
@@ -298,7 +292,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
     char *etag;
-    //asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
+    asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
 
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
@@ -353,13 +347,12 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
 
     char *header;
-    //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-        //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
+        asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time, etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-        //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
+        asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time);
     }
     write(client_fd, header, strlen(header));
@@ -385,7 +378,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
-  char *server_msg = "Message";
   char client_msg[MESSAGE_LENGTH];
   memset(client_msg, '\0', MESSAGE_LENGTH);
 
