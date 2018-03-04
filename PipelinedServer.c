@@ -378,15 +378,22 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     strftime(rfc_time, 80, rfc_format, localtime(&(stat_struct.st_mtime)));
     strftime(current_time, 80, rfc_format, localtime(&(time_sec)));
 
+    char *connect_string;
+    if (connection == 1){
+      connect_string = "keep-alive";
+    }else{
+      connect_string = "close";
+    }
+
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
-        current_time, (int)length, mime_type, rfc_time, etag);
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
+        current_time, (int)length, mime_type, connect_string, rfc_time, etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
-        current_time, (int)length, mime_type, rfc_time);
+      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
+        current_time, (int)length, mime_type, connect_string, rfc_time);
     }
     write(client_fd, header, strlen(header));
     free(header);
@@ -490,7 +497,7 @@ int main(int argc, char * argv[]){
       //set timeout on client_fd read
       setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
       int connection = 1;
-      while (read(client_fd, client_msg, MESSAGE_LENGTH) > 0 && connection == 1){
+      while (connection == 1 && read(client_fd, client_msg, MESSAGE_LENGTH) > 0){
         fprintf(stdout, "Recieved Client Message %s\n", client_msg);
         connection = process_pipelined_request(client_fd, client_msg, argv[2]);
       }
