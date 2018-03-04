@@ -47,7 +47,6 @@ const char *get_filename_ext(const char *filename) {
 
 const char *get_mime_type(const char *full_path){
   const char *file_ext = get_filename_ext(full_path);
-  printf("extension %s\n", file_ext);
   int i;
   for (i = 0; extensions[i].ext != NULL; i++) {
     if (strcasecmp(file_ext, extensions[i].ext) == 0){
@@ -67,7 +66,7 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
       time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (difftime(mktime(&tm), mtime) >= 0){
-        printf("Not modified!!\n");
+        //not modified
         write(client_fd, not_modified, strlen(not_modified));
         return -1;
       }
@@ -86,7 +85,6 @@ int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int
       time_t req_time = mktime(&tm);
       //returns difference of seconds btw time1, time2
       if (!(difftime(mktime(&tm), mtime) >= 0)){
-        printf("wasn't modified since!!\n");
         write(client_fd, precondition_failed, strlen(precondition_failed));
         return -1;
       }
@@ -114,7 +112,7 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
       }
       token = strtok(NULL, ", ");
     }
-    printf("Etags dont match!\n");
+    //etags dont match
     write(client_fd, precondition_failed, strlen(precondition_failed));
     return -1;
   }
@@ -138,7 +136,7 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
         token = token + 2;
       }
       if(strcmp(token, etag_computed) == 0){
-        printf("An etag matched!\n");
+        //etag matched
         write(client_fd, precondition_failed, strlen(precondition_failed));
         return -1;
       }
@@ -146,7 +144,6 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
       token = strtok(NULL, ", ");
     }
     //no etags were found, successful
-    printf("No etags were matched!\n");
     return 0;
   }
   return 0;
@@ -177,10 +174,6 @@ char* concat(const char *s1, const char *s2){
     return result;
 }
 
-//TODO clean up code, refactor it. Also remove printf and fprintf debugging statements when everything works correctly
-//TODO better documentation, format the code to a particular style
-//TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
-//TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 int process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
   char *file_not_found = " 404 File Not Found\r\n";
@@ -198,14 +191,12 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   //check for get request
   //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
-    fprintf(stdout, "Missing GET\n");
     write(client_fd, bad_request_one, strlen(bad_request_one));
     return 0;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
-    fprintf(stdout, "Missing path\n");
     write(client_fd, bad_request_one, strlen(bad_request_one));
     return 0;
   }
@@ -240,12 +231,8 @@ int process_request(int client_fd, char *client_msg, char *root_path){
       break;
     }
 
-    fprintf(stdout, "key %s\n", key);
-    fprintf(stdout, "value %s\n",value);
-
     if (strcasecmp(key, "\nHost:") == 0 || strcasecmp(key, "Host:") == 0){
       host = value;
-      fprintf(stdout, "host %s\n", host);
     }else if (strcasecmp(key, "\nConnection:") == 0 || strcasecmp(key, "Connection:") == 0){
       if (strcasecmp(value, "keep-alive") == 0){
         connection = 1;
@@ -254,23 +241,18 @@ int process_request(int client_fd, char *client_msg, char *root_path){
       }
     }else if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
-      fprintf(stdout, "date %s\n", modified_date);
     }else if (strcasecmp(key, "\nIf-Unmodified-Since:") == 0 || strcasecmp(key, "If-Unmodified-Since:") == 0){
       unmodified_date = value;
-      fprintf(stdout, "date %s\n", unmodified_date);
     }else if (strcasecmp(key, "\nIf-Match:") == 0 || strcasecmp(key, "If-Match:") == 0){
       etag_given = value;
-      fprintf(stdout, "etag %s\n", etag_given);
     }else if (strcasecmp(key, "\nIf-None-Match:") == 0 || strcasecmp(key, "If-None-Match:") == 0){
       etag_given_none = value;
-      fprintf(stdout, "etag %s\n", etag_given_none);
     }
   }
 
   // check for HTTP1.1 and host header
   if (strcasecmp(http_type, "HTTP/1.1") == 0) {
     if (host == NULL) {
-      fprintf(stdout, "Missing Host Header\n");
       write(client_fd, bad_request_one, strlen(bad_request_one));
       return connection;
     }
@@ -283,13 +265,11 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
 
   if (full_path == NULL){
-    printf("Error allocating memory!!\n");
     char *response = concat(http_type, server_error);
     write(client_fd, response, strlen(response));
     return connection;
   }
 
-  //TODO consider the case where the path does not start with /, this won't work
   strcat(full_path, root_path);
 
   //look at index.html if only root is asked
@@ -299,7 +279,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     strcat(full_path, path);
   }
 
-  fprintf(stdout, "full path %s\n", full_path);
 
   int file_fd, length;
   char *file_buffer;
@@ -310,18 +289,16 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   {
     //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
-      printf("Error retrieving file metadata \n");
       char *response = concat(http_type, server_error);
       write(client_fd, response, strlen(response));
       return connection;
     }
 
     length = stat_struct.st_size;
-    fprintf(stdout, "length %d\n", length);
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
     char *etag;
-    asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
+    //asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
 
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
@@ -378,11 +355,11 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     char *header;
     //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
-      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
+        //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time, etag);
     }
     else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
-      asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
+        //asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\n\r\n",
         current_time, (int)length, mime_type, connect_string, rfc_time);
     }
     write(client_fd, header, strlen(header));
@@ -392,7 +369,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
 
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
-        printf("Send err!!\n");
         char *response = concat(http_type, server_error);
         write(client_fd, response, strlen(response));
         return connection;

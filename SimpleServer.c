@@ -46,7 +46,6 @@ const char *get_filename_ext(const char *filename) {
 
 const char *get_mime_type(const char *full_path){
   const char *file_ext = get_filename_ext(full_path);
-  printf("extension %s\n", file_ext);
   int i;
   for (i = 0; extensions[i].ext != NULL; i++) {
     if (strcasecmp(file_ext, extensions[i].ext) == 0){
@@ -62,9 +61,7 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
     if (strptime(modified_date, "%c", &tm) != NULL
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
-      time_t req_time = mktime(&tm);
       if (difftime(mktime(&tm), mtime) >= 0){
-        printf("Not modified!!\n");
         write(client_fd, not_modified, strlen(not_modified));
         return -1;
       }
@@ -108,14 +105,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   //check for get request
   //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
-    fprintf(stdout, "Missing GET\n");
     write(client_fd, bad_request, strlen(bad_request));
     return;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
-    fprintf(stdout, "Missing path\n");
     write(client_fd, bad_request, strlen(bad_request));
     return;
   }
@@ -139,12 +134,9 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       break;
     }
 
-    fprintf(stdout, "key: %s\n", key);
-    fprintf(stdout, "value %s\n",value);
-
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
-      fprintf(stdout, "date %s\n", modified_date);
+      //fprintf(stdout, "date %s\n", modified_date);
       break;
     }
   }
@@ -156,7 +148,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
 
   if (full_path == NULL){
-    printf("Error allocating memory!!\n");
     write(client_fd, server_error, strlen(server_error));
     return;
   }
@@ -171,10 +162,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     strcat(full_path, path);
   }
 
-  fprintf(stdout, "full path %s\n", full_path);
-
   int file_fd, length;
-  char *file_buffer;
   struct stat stat_struct;
 
   //open the file if it exists
@@ -182,13 +170,11 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   {
     //find file metadata
     if(fstat(file_fd, &stat_struct) == -1 ){
-      printf("Error retrieving file metadata \n");
       write(client_fd, server_error, strlen(server_error));
       return;
     }
 
     length = stat_struct.st_size;
-    fprintf(stdout, "length %d\n", length);
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
     //handle if-modified-since parameter, check if time is in a correct format
@@ -222,7 +208,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
     //sendfile to client
     if (sendfile(client_fd, file_fd, NULL, length) == -1){
-        printf("Send err!!\n");
         write(client_fd, server_error, strlen(server_error));
         return;
     }
@@ -236,7 +221,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
-  char *server_msg = "Message";
   char client_msg[MESSAGE_LENGTH];
   memset(client_msg, '\0', MESSAGE_LENGTH);
 
