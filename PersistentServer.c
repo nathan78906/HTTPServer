@@ -181,7 +181,7 @@ char* concat(const char *s1, const char *s2){
 //TODO better documentation, format the code to a particular style
 //TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
 //TODO investigate why multiline get request with conditional parameters doesn't work in netcat
-void process_request(int client_fd, char *client_msg, char *root_path){
+int process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
   char *file_not_found = " 404 File Not Found\r\n";
   char *success = " 200 OK\r\n";
@@ -200,14 +200,14 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     fprintf(stdout, "Missing GET\n");
     write(client_fd, bad_request_one, strlen(bad_request_one));
-    return;
+    return 0;
   }
 
   //retrieve path
   if ((path = strtok(NULL, " \t")) == NULL){
     fprintf(stdout, "Missing path\n");
     write(client_fd, bad_request_one, strlen(bad_request_one));
-    return;
+    return 0;
   }
 
   //determine if HTTP type is provided
@@ -215,7 +215,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   http_type = strtok(NULL, "\r\n");
   if (strcasecmp(http_type, "HTTP/1.0") != 0 && strcasecmp(http_type, "HTTP/1.1") != 0){
     write(client_fd, not_supported, strlen(not_supported));
-    return;
+    return 0;
   }
 
   char *key, *value;
@@ -224,6 +224,13 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *etag_given = NULL;
   char *etag_given_none = NULL;
   char *host = NULL;
+  int connection;
+
+  if (strcasecmp(http_type, "HTTP/1.1") == 0){
+    connection = 1;
+  }else{
+    connection = 0;
+  }
 
   //look for the headers
   //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
@@ -241,28 +248,32 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       fprintf(stdout, "host %s\n", host);
     }
 
+    if (strcasecmp(key, "\nConnection:") == 0 || strcasecmp(key, "Connection:") == 0){
+      if (strcasecmp(value, "keep-alive") == 0){
+        connection = 1;
+      }else if (strcasecmp(value, "close") == 0){
+        connection = 0;
+      }
+    }
+
     if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
-      break;
     }
 
     if (strcasecmp(key, "\nIf-Unmodified-Since:") == 0 || strcasecmp(key, "If-Unmodified-Since:") == 0){
       unmodified_date = value;
       fprintf(stdout, "date %s\n", unmodified_date);
-      break;
     }
 
     if (strcasecmp(key, "\nIf-Match:") == 0 || strcasecmp(key, "If-Match:") == 0){
       etag_given = value;
       fprintf(stdout, "etag %s\n", etag_given);
-      break;
     }
 
     if (strcasecmp(key, "\nIf-None-Match:") == 0 || strcasecmp(key, "If-None-Match:") == 0){
       etag_given_none = value;
       fprintf(stdout, "etag %s\n", etag_given_none);
-      break;
     }
   }
 
@@ -271,7 +282,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     if (host == NULL) {
       fprintf(stdout, "Missing Host Header\n");
       write(client_fd, bad_request_one, strlen(bad_request_one));
-      return;
+      return connection;
     }
   }
 
@@ -285,7 +296,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     printf("Error allocating memory!!\n");
     char *response = concat(http_type, server_error);
     write(client_fd, response, strlen(response));
-    return;
+    return connection;
   }
 
   //TODO consider the case where the path does not start with /, this won't work
@@ -312,7 +323,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       printf("Error retrieving file metadata \n");
       char *response = concat(http_type, server_error);
       write(client_fd, response, strlen(response));
-      return;
+      return connection;
     }
 
     length = stat_struct.st_size;
@@ -325,27 +336,27 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
       if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified_one) == -1){
-        return;
+        return connection;
       }
 
       //handle if-unmodified-since parameter, check if time is in a correct format
       if (check_last_unmodified_parameter(unmodified_date, stat_struct.st_mtime, client_fd, rfc_format, precondition_failed) == -1){
-        return;
+        return connection;
       }
 
       //handle if-match header
       if (check_if_match(etag_given, etag, client_fd, precondition_failed) == -1) {
-        return;
+        return connection;
       }
 
       //handle if-none-match header
       if (check_if_none_match(etag_given_none, etag, client_fd, precondition_failed) == -1) {
-        return;
+        return connection;
       }
     } else if (strcasecmp(http_type, "HTTP/1.0") == 0) {
       //handle if-modified-since parameter, check if time is in a correct format
       if (check_last_modified_parameter(modified_date, stat_struct.st_mtime, client_fd, rfc_format, not_modified) == -1){
-        return;
+        return connection;
       }
     }
 
@@ -387,20 +398,23 @@ void process_request(int client_fd, char *client_msg, char *root_path){
         printf("Send err!!\n");
         char *response = concat(http_type, server_error);
         write(client_fd, response, strlen(response));
-        return;
+        return connection;
     }
   }else{
     //File not found
     char *response = concat(http_type, file_not_found);
     write(client_fd, response, strlen(response));
   }
+  return connection;
 }
 
 //argv will contain 2 params : PORT #, http_root_path
 int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
-  char client_msg[MESSAGE_LENGTH], *server_msg = "Message";
+  char *server_msg = "Message";
+  char client_msg[MESSAGE_LENGTH];
+  memset(client_msg, '\0', MESSAGE_LENGTH);
 
   //determine port number to listen on
   if (argc != 3){
@@ -457,10 +471,10 @@ int main(int argc, char * argv[]){
 
       //set timeout on client_fd read
       setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-
-      while (read(client_fd, client_msg, MESSAGE_LENGTH) > 0){
+      int connection = 1;
+      while (read(client_fd, client_msg, MESSAGE_LENGTH) > 0 && connection == 1){
         fprintf(stdout, "Recieved Client Message %s\n", client_msg);
-        process_request(client_fd, client_msg, argv[2]);
+        connection = process_request(client_fd, client_msg, argv[2]);
       }
       handle_error(close(client_fd), "close error");
       //exit from child process
@@ -473,4 +487,3 @@ int main(int argc, char * argv[]){
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
 }
-

@@ -236,7 +236,9 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 int main(int argc, char * argv[]){
   int server_fd, client_fd, rc, client_addr_len, opt;
   struct sockaddr_in server_addr, client_addr;
-  char client_msg[MESSAGE_LENGTH], *server_msg = "Message";
+  char *server_msg = "Message";
+  char client_msg[MESSAGE_LENGTH];
+  memset(client_msg, '\0', MESSAGE_LENGTH);
 
   //determine port number to listen on
   if (argc != 3){
@@ -300,4 +302,3 @@ int main(int argc, char * argv[]){
   //shouldn't ever exit out of loop
   return(EXIT_FAILURE);
 }
-
