@@ -246,32 +246,22 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     if (strcasecmp(key, "\nHost:") == 0 || strcasecmp(key, "Host:") == 0){
       host = value;
       fprintf(stdout, "host %s\n", host);
-    }
-
-    if (strcasecmp(key, "\nConnection:") == 0 || strcasecmp(key, "Connection:") == 0){
+    }else if (strcasecmp(key, "\nConnection:") == 0 || strcasecmp(key, "Connection:") == 0){
       if (strcasecmp(value, "keep-alive") == 0){
         connection = 1;
       }else if (strcasecmp(value, "close") == 0){
         connection = 0;
       }
-    }
-
-    if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
+    }else if (strcasecmp(key, "\nIf-Modified-Since:") == 0 || strcasecmp(key, "If-Modified-Since:") == 0){
       modified_date = value;
       fprintf(stdout, "date %s\n", modified_date);
-    }
-
-    if (strcasecmp(key, "\nIf-Unmodified-Since:") == 0 || strcasecmp(key, "If-Unmodified-Since:") == 0){
+    }else if (strcasecmp(key, "\nIf-Unmodified-Since:") == 0 || strcasecmp(key, "If-Unmodified-Since:") == 0){
       unmodified_date = value;
       fprintf(stdout, "date %s\n", unmodified_date);
-    }
-
-    if (strcasecmp(key, "\nIf-Match:") == 0 || strcasecmp(key, "If-Match:") == 0){
+    }else if (strcasecmp(key, "\nIf-Match:") == 0 || strcasecmp(key, "If-Match:") == 0){
       etag_given = value;
       fprintf(stdout, "etag %s\n", etag_given);
-    }
-
-    if (strcasecmp(key, "\nIf-None-Match:") == 0 || strcasecmp(key, "If-None-Match:") == 0){
+    }else if (strcasecmp(key, "\nIf-None-Match:") == 0 || strcasecmp(key, "If-None-Match:") == 0){
       etag_given_none = value;
       fprintf(stdout, "etag %s\n", etag_given_none);
     }
