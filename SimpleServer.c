@@ -93,12 +93,12 @@ void handle_error(int status, char *message){
 //TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 void process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
-  char *bad_request = "HTTP/1.0 400 Bad Request\r\n";
-  char *file_not_found = "HTTP/1.0 404 File Not Found\r\n";
+  char *bad_request = "HTTP/1.0 400 Bad Request\r\n\r\n";
+  char *file_not_found = "HTTP/1.0 404 File Not Found\r\n\r\n";
   char *success_response = "HTTP/1.0 200 OK\r\n";
-  char *server_error = "HTTP/1.0 500 Internal Server Error\r\n";
-  char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
-  char *not_supported = "HTTP/1.0 505 HTTP Version Not Supported\r\n";
+  char *server_error = "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+  char *not_modified = "HTTP/1.0 304 Not Modified\r\n\r\n";
+  char *not_supported = "HTTP/1.0 505 HTTP Version Not Supported\r\n\r\n";
   char *path, *http_type;
 
   //parse the http request
@@ -273,7 +273,7 @@ int main(int argc, char * argv[]){
       //process requests
       fprintf(stdout, "Received connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
       read(client_fd, client_msg, MESSAGE_LENGTH);
-      fprintf(stdout, "Recieved Client Message %s\n", client_msg);
+      fprintf(stdout, "Recieved Client Message:\n%s\n", client_msg);
       process_request(client_fd, client_msg, argv[2]);
       handle_error(close(client_fd), "close error");
       //exit from child process

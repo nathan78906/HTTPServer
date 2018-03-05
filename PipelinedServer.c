@@ -173,15 +173,15 @@ char* concat(const char *s1, const char *s2){
 
 int process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
-  char *file_not_found = " 404 File Not Found\r\n";
+  char *file_not_found = " 404 File Not Found\r\n\r\n";
   char *success = " 200 OK\r\n";
-  char *server_error = " 500 Internal Server Error\r\n";
+  char *server_error = " 500 Internal Server Error\r\n\r\n";
 
-  char *not_modified = "HTTP/1.0 304 Not Modified\r\n";
-  char *bad_request_one = "HTTP/1.1 400 Bad Request\r\n";
-  char *not_modified_one = "HTTP/1.1 304 Not Modified\r\n";
-  char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n";
-  char *not_supported = "HTTP/1.1 505 HTTP Version Not Supported\r\n";
+  char *not_modified = "HTTP/1.0 304 Not Modified\r\n\r\n";
+  char *bad_request_one = "HTTP/1.1 400 Bad Request\r\n\r\n";
+  char *not_modified_one = "HTTP/1.1 304 Not Modified\r\n\r\n";
+  char *precondition_failed = "HTTP/1.1 412 Precondition Failed\r\n\r\n";
+  char *not_supported = "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n";
   char *path, *http_type;
 
   //parse the http request
@@ -453,7 +453,7 @@ int main(int argc, char * argv[]){
       setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
       int connection = 1;
       while (connection == 1 && read(client_fd, client_msg, MESSAGE_LENGTH) > 0){
-        fprintf(stdout, "Recieved Client Message %s\n", client_msg);
+        fprintf(stdout, "Recieved Client Message:\n%s\n", client_msg);
         connection = process_pipelined_request(client_fd, client_msg, argv[2]);
       }
       handle_error(close(client_fd), "close error");
