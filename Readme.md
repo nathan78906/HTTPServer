@@ -1,36 +1,14 @@
-# How to run server?
+## How to run server?
 
 ## Compile c code
 
-ex gcc SimpleServer.c
+gcc -Wall server_file_name.c -o serv
 
 ## Execute
 
 Takes PORT and ROOT_DIR params
 
-./a.out 10001 ~/user
-
-# How to run netcat client?
-
-ex nc 127.0.0.1 10001
-
-Enter get requests in client after.
-
-GET /hello.txt HTTP/1.0
-
-if-modified-since: Sunday, 18-Feb-18 21:49:37 GMT
-
-Be careful when entering multiline get requests, pressing enter only sends the first line. Copy paste it instead.
-This is a possible bug in the code that needs to be investigated.
-
-# Linux instructions
-## To compile
-
-`gcc -Wall SimpleServer.c -o sim` 
-
-## Execute 
-
-`./sim 10001 ~/Documents/server/`
+./serv 10001 ~/user
 
 ## Testing
 
@@ -83,6 +61,10 @@ Then
 `curl -v --http1.1 --header 'If-None-Match: "46783227-1519946231-21", "random"' 0.0.0.0:10001/hello.txt`
 => Should return preconditional error 
 
+### Pipeline Testing
+
+(echo -en "GET /b.txt HTTP/1.1\r\nHost: localhost:10001\r\n\r\nGET /a.txt HTTP/1.1\r\nHost: localhost:10001\r\n\r\n"; sleep 0.1) | nc localhost 10001
+
 ## Resources
 All server implementations make use of the following information:
 
@@ -111,5 +93,18 @@ https://www.wikiwand.com/en/HTTP_pipelining
 https://httpd.apache.org/docs/2.4/mod/core.html#keepalivetimeout
 
 https://httpd.apache.org/docs/2.4/mod/core.html#fileetag
+
+http://www-net.cs.umass.edu/kurose-ross-ppt-6e/
+
+https://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html
+
+https://tools.ietf.org/html/rfc2616
+
+https://tools.ietf.org/html/rfc2616#section-14.24
+
+https://avinetworks.com/docs/16.3/overview-of-server-persistence/
+
+https://en.wikipedia.org/wiki/List_of_HTTP_header_fields
+
 
 
