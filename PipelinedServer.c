@@ -38,13 +38,14 @@ const extn extensions[] ={
  {"pdf","application/pdf"},
  {0,0} };
 
-
+// gets the extension for the filename
 const char *get_filename_ext(const char *filename) {
     const char *dot = strrchr(filename, '.');
     if(!dot || dot == filename) return "";
     return dot + 1;
 }
 
+// gets the mimetype based off the extension
 const char *get_mime_type(const char *full_path){
   const char *file_ext = get_filename_ext(full_path);
   int i;
@@ -56,9 +57,11 @@ const char *get_mime_type(const char *full_path){
   return NULL;
 }
 
+// handles the If-Modified-Since header
 int check_last_modified_parameter(const char *modified_date, time_t mtime, int client_fd, const char *rfc_format, const char *not_modified){
   if (modified_date != NULL){
     struct tm tm;
+    // check 3 different date formats 
     if (strptime(modified_date, "%c", &tm) != NULL
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
@@ -73,9 +76,11 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
   return 0;
 }
 
+// handles the If-Unmodified-Since header
 int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int client_fd, const char *rfc_format, const char *precondition_failed){
   if (modified_date != NULL){
     struct tm tm;
+    // check 3 different date formats 
     if (strptime(modified_date, "%c", &tm) != NULL
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
@@ -90,7 +95,8 @@ int check_last_unmodified_parameter(const char *modified_date, time_t mtime, int
   return 0;
 }
 
-//Succeeds if the ETag of the distant resource is equal to one listed in this header
+// handles the If-Match header
+// check if the ETag of the resource matches any of the ETags provided
 int check_if_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed) {
   if (etag_given != NULL) {
     if (strcmp(etag_given, "*") == 0) {
@@ -116,8 +122,8 @@ int check_if_match(char *etag_given, const char *etag_computed, int client_fd, c
   return 0;
 }
 
-//Succeeds if the ETag of the distant resource is different to each listed in this header
-//if tag is null return 0, if theres a match return -1, if no matches return 1
+// handles the If-None-Match header
+// check if none of the ETags given match the ETag of the resource
 int check_if_none_match(char *etag_given, const char *etag_computed, int client_fd, const char *precondition_failed){
   if(etag_given != NULL){
     if (strcmp(etag_given, "*") == 0) {
@@ -147,6 +153,7 @@ int check_if_none_match(char *etag_given, const char *etag_computed, int client_
 
 }
 
+// allows a clean exit in case of error
 void clean_exit(int rc, int fd, char *message){
   if (rc == -1 || fd == -1){
     if (fd != -1){
@@ -157,6 +164,7 @@ void clean_exit(int rc, int fd, char *message){
   }
 }
 
+// handle error and exit if we get one
 void handle_error(int status, char *message){
   if (status < 0){
     perror(message);
@@ -164,6 +172,7 @@ void handle_error(int status, char *message){
   }
 }
 
+// concat strings together
 char* concat(const char *s1, const char *s2){
     char *result = malloc(strlen(s1)+strlen(s2)+1);
     strcpy(result, s1);
@@ -171,6 +180,7 @@ char* concat(const char *s1, const char *s2){
     return result;
 }
 
+// process a client's request
 int process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
   char *file_not_found = " 404 File Not Found\r\n\r\n";
@@ -219,7 +229,6 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   }
 
   //look for the headers
-  //the parsing will fail
   while(1){
     if ((key = strtok(NULL, " \t")) == NULL || (value = strtok(NULL, "\r\n")) == NULL){
       break;
@@ -257,7 +266,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   char *full_path = (char *)malloc(path_size * sizeof(char));
   memset(full_path, '\0', path_size);
 
-
+  // check if path is null
   if (full_path == NULL){
     char *response = concat(http_type, server_error);
     write(client_fd, response, strlen(response));
@@ -289,6 +298,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
     length = stat_struct.st_size;
     char *rfc_format =  "%a, %d %b %Y %T GMT";
 
+    // compute etag
     char *etag;
     asprintf(&etag, "\"%ld-%ld-%lld\"", (long)stat_struct.st_ino, (long)stat_struct.st_mtime, (long long)stat_struct.st_size);
 
@@ -319,7 +329,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
       }
     }
 
-    //figure out mime type from extension
+    //figure out mime type from extension, send back octet-stream if unsupported
     const char *mime_type = get_mime_type(full_path);
 
     if (mime_type == NULL){
@@ -344,6 +354,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
       connect_string = "close";
     }
 
+    // send back headers to the client
     char *header;
     if (strcasecmp(http_type, "HTTP/1.1") == 0) {
         asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nConnection: %s\r\nLast-Modified: %s\r\nETag: %s\r\n\r\n",
@@ -372,6 +383,7 @@ int process_request(int client_fd, char *client_msg, char *root_path){
   return connection;
 }
 
+// process pipelined requests, loops through all of them
 int process_pipelined_request(int client_fd, char *client_msg, char *root_path){
   char *request_tail, *request_cpy, *request_head;
   int request_size, connection;

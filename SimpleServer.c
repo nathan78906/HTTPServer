@@ -38,12 +38,14 @@ const extn extensions[] ={
  {"pdf","application/pdf"},
  {0,0} };
 
+// gets the extension for the filename
 const char *get_filename_ext(const char *filename) {
     const char *dot = strrchr(filename, '.');
     if(!dot || dot == filename) return "";
     return dot + 1;
 }
 
+// gets the mimetype based off the extension
 const char *get_mime_type(const char *full_path){
   const char *file_ext = get_filename_ext(full_path);
   int i;
@@ -55,13 +57,18 @@ const char *get_mime_type(const char *full_path){
   return NULL;
 }
 
+// handles the If-Modified-Since header
 int check_last_modified_parameter(const char *modified_date, time_t mtime, int client_fd, const char *rfc_format, const char *not_modified){
   if (modified_date != NULL){
     struct tm tm;
+    // check 3 different date formats 
     if (strptime(modified_date, "%c", &tm) != NULL
     || strptime(modified_date, rfc_format, &tm) != NULL
     || strptime(modified_date, "%A, %d-%b-%y %T GMT", &tm) != NULL){
+      //converts broken-down time into time since the Epoch
+      //returns difference of seconds btw time1, time2
       if (difftime(mktime(&tm), mtime) >= 0){
+        //not modified
         write(client_fd, not_modified, strlen(not_modified));
         return -1;
       }
@@ -70,6 +77,7 @@ int check_last_modified_parameter(const char *modified_date, time_t mtime, int c
   return 0;
 }
 
+// allows a clean exit in case of error
 void clean_exit(int rc, int fd, char *message){
   if (rc == -1 || fd == -1){
     if (fd != -1){
@@ -80,6 +88,7 @@ void clean_exit(int rc, int fd, char *message){
   }
 }
 
+// handle error and exit if we get one
 void handle_error(int status, char *message){
   if (status < 0){
     perror(message);
@@ -87,10 +96,6 @@ void handle_error(int status, char *message){
   }
 }
 
-//TODO clean up code, refactor it. Also remove printf and fprintf debugging statements when everything works correctly
-//TODO better documentation, format the code to a particular style
-//TODO what if incorrect key value pairs or incorrect date? What kind of response do we send?
-//TODO investigate why multiline get request with conditional parameters doesn't work in netcat
 void process_request(int client_fd, char *client_msg, char *root_path){
   //declare response messages
   char *bad_request = "HTTP/1.0 400 Bad Request\r\n\r\n";
@@ -103,7 +108,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
 
   //parse the http request
   //check for get request
-  //TODO, what should be the correct response in failure case?
   if (strcasecmp(strtok(client_msg, " \t"), "GET") != 0){
     write(client_fd, bad_request, strlen(bad_request));
     return;
@@ -116,7 +120,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   }
 
   //determine if HTTP type is provided
-  //TODO, check if http type is required or is optional
   http_type = strtok(NULL, "\r\n");
   if ((strcasecmp(http_type, "HTTP/1.0")) != 0){
     write(client_fd, not_supported, strlen(not_supported));
@@ -127,8 +130,6 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *modified_date = NULL;
 
   //look for the last modified date;
-  //TODO, do we need to handle other conditional key value pairs here? Also figure out what the correct format for the newlines is in the header or
-  //the parsing will fail
   while(1){
     if ((key = strtok(NULL, " \t")) == NULL || (value = strtok(NULL, "\r\n")) == NULL){
       break;
@@ -146,13 +147,12 @@ void process_request(int client_fd, char *client_msg, char *root_path){
   char *full_path = (char *)malloc(path_size * sizeof(char));
   memset(full_path, '\0', path_size);
 
-
+  // check if path is null
   if (full_path == NULL){
     write(client_fd, server_error, strlen(server_error));
     return;
   }
 
-  //TODO consider the case where the path does not start with /, this won't work
   strcat(full_path, root_path);
 
   //look at index.html if only root is asked
@@ -182,7 +182,7 @@ void process_request(int client_fd, char *client_msg, char *root_path){
       return;
     }
 
-    //figure out mime type from extension
+    //figure out mime type from extension, send back octet-stream if unsupported
     const char *mime_type = get_mime_type(full_path);
 
     if (mime_type == NULL){
@@ -199,8 +199,8 @@ void process_request(int client_fd, char *client_msg, char *root_path){
     strftime(rfc_time, 80, rfc_format, localtime(&(stat_struct.st_mtime)));
     strftime(current_time, 80, rfc_format, localtime(&(time_sec)));
 
+    // send back headers to the client
     char *header;
-    //TODO figure out the correct format of the response. Especially the newline. Also are we missing any other response key value pairs?
     asprintf(&header, "Date: %s\r\nContent-Length: %d\r\nContent-Type: %s\r\nLast-Modified: %s\r\n\r\n",
      current_time, (int)length, mime_type, rfc_time);
     write(client_fd, header, strlen(header));
