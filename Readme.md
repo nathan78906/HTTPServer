@@ -1,16 +1,26 @@
-## How to run server?
+# HTTP/1.0 & HTTP/1.1 Server
 
-## Compile c code
+## Features
+
+- GET Requests
+- Designed to mimic the Apache HTTP Server
+- Persistent connections (Connection: Keep-Alive, Close)
+- HTTP Pipelining
+- Conditional headers (If-Modified-Since, If-Unmodified-Since, If-Match, If-None-Match)
+- Entity tags for HTTP/1.1 requests
+- Supports file extensions: `gif, txt, css, js, htm, html, php, jpg, jpeg, png, ico, zip, gz, tar, pdf`
+
+### Compile c code
 
 gcc -Wall server_file_name.c -o serv
 
-## Execute
+### Execute
 
 Takes PORT and ROOT_DIR params
 
 ./serv 10001 ~/user
 
-## Testing
+### Testing
 
 `curl --http1.0 --header 'If-Modified-Since: Sunday, 18-Feb-18 21:49:37 GMT' 0.0.0.0:10001/hello.txt`
 
